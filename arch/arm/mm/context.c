@@ -45,10 +45,6 @@ static DEFINE_PER_CPU(u64, active_asids);
 static DEFINE_PER_CPU(u64, reserved_asids);
 static cpumask_t tlb_flush_pending;
 
-#ifdef CONFIG_SMP
-DEFINE_PER_CPU(struct mm_struct *, current_mm);
-#endif
-
 #ifdef CONFIG_ARM_LPAE
 #define cpu_set_asid(asid) {						\
 	unsigned long ttbl, ttbh;					\

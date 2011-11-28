@@ -24,10 +24,6 @@ void __check_kvm_seq(struct mm_struct *mm);
 
 #ifdef CONFIG_CPU_HAS_ASID
 
-#ifdef CONFIG_SMP
-DECLARE_PER_CPU(struct mm_struct *, current_mm);
-#endif
-
 void check_and_switch_context(struct mm_struct *mm, struct task_struct *tsk);
 #define init_new_context(tsk,mm)	({ mm->context.id = 0; })
 
@@ -81,10 +77,6 @@ switch_mm(struct mm_struct *prev, struct mm_struct *next,
 		__flush_icache_all();
 #endif
 	if (!cpumask_test_and_set_cpu(cpu, mm_cpumask(next)) || prev != next) {
-#ifdef CONFIG_SMP
-		struct mm_struct **crt_mm = &per_cpu(current_mm, cpu);
-		*crt_mm = next;
-#endif
 		check_and_switch_context(next, tsk);
 		if (cache_is_vivt())
 			cpumask_clear_cpu(cpu, mm_cpumask(prev));
