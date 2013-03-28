@@ -28,6 +28,7 @@
 #include <linux/delay.h>
 #include <linux/platform_device.h>
 #include <linux/of_platform.h>
+#include <linux/cpu.h>
 #include <mach/msm_iomap.h>
 #include <mach/socinfo.h>
 #include <mach/system.h>
@@ -82,6 +83,8 @@ module_param_named(
 	debug_mask, msm_pm_debug_mask, int, S_IRUGO | S_IWUSR | S_IWGRP
 );
 static int msm_pm_retention_tz_call;
+
+static atomic_t cpu_online_num = ATOMIC_INIT(0);
 
 /******************************************************************************
  * Sleep Modes and Parameters
@@ -819,7 +822,8 @@ int msm_pm_idle_prepare(struct cpuidle_device *dev,
 
 		switch (mode) {
 		case MSM_PM_SLEEP_MODE_POWER_COLLAPSE:
-			if (num_online_cpus() > 1 || cpu_maps_is_updating()) {
+			if (num_online_cpus() > 1 || cpu_maps_is_updating() ||
+			    atomic_read(&cpu_online_num) > 1) {
 				allow = false;
 				break;
 			}
@@ -829,7 +833,8 @@ int msm_pm_idle_prepare(struct cpuidle_device *dev,
 				break;
 
 			if (msm_pm_retention_tz_call &&
-				num_online_cpus() > 1) {
+				(num_online_cpus() > 1 ||
+				 atomic_read(&cpu_online_num) > 1)) {
 				allow = false;
 				break;
 			}
@@ -1266,6 +1271,35 @@ static struct platform_driver msm_pc_counter_driver = {
 	},
 };
 
+static int msm_pm_cpu_callback(struct notifier_block *nfb,
+				unsigned long action, void *hcpu)
+{
+	switch (action) {
+	case CPU_UP_PREPARE:
+	case CPU_UP_PREPARE_FROZEN:
+		atomic_inc(&cpu_online_num);
+		break;
+	case CPU_ONLINE:
+	case CPU_ONLINE_FROZEN:
+		break;
+#ifdef CONFIG_HOTPLUG_CPU
+	case CPU_UP_CANCELED:
+	case CPU_UP_CANCELED_FROZEN:
+		atomic_dec(&cpu_online_num);
+		break;
+	case CPU_DEAD:
+	case CPU_DEAD_FROZEN:
+		atomic_dec(&cpu_online_num);
+		break;
+	}
+#endif
+	return NOTIFY_OK;
+}
+
+static struct notifier_block msm_pm_cpu_notifier = {
+	.notifier_call = msm_pm_cpu_callback,
+};
+
 static int __init msm_pm_setup_saved_state(void)
 {
 	pgd_t *pc_pgd;
@@ -1343,6 +1377,10 @@ static int __init msm_pm_init(void)
 		return rc;
 	}
 
+
+	atomic_set(&cpu_online_num, num_online_cpus());
+
+	register_hotcpu_notifier(&msm_pm_cpu_notifier);
 
 	return 0;
 }
