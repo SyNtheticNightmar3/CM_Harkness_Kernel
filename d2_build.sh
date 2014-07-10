@@ -5,9 +5,9 @@
 # ccache -M 2G;
 
 export ARCH=arm;
-export CROSS_COMPILE=~/gcc-toolchains/arm-none-eabi-4.7/bin/arm-none-eabi-;
+export CROSS_COMPILE=~/gcc-toolchains/arm-none-eabi-4.8.3/bin/arm-none-eabi-;
 
-export PATH=~/gcc-toolchains/arm-none-eabi-4.7/bin/cache:~/gcc-toolchains/arm-none-eabi-4.7/bin:$PATH;
+export PATH=~/gcc-toolchains/arm-none-eabi-4.8.3/bin/cache:~/gcc-toolchains/arm-none-eabi-4.8.3/bin:$PATH;
 export CS_GCC_TRIPLET=arm-none-eabi-;
 
 while getopts ":c :p" opt
@@ -45,7 +45,7 @@ else
             echo "Packaging..."
             cd out
             cdate=`date "+%Y-%m-%d"`
-            zfile=Harkness-kernel-d2-$cdate.zip
+            zfile=Harkness-Kernel-d2-$cdate.zip
             zip -r $zfile .
             cd ..
             echo "ZIPFILE:  out/$zfile"
