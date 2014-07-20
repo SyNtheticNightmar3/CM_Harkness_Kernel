@@ -392,7 +392,7 @@ static void cpufreq_interactive_timer(unsigned long data)
 	int cpu_load;
 	struct cpufreq_interactive_cpuinfo *pcpu =
 		&per_cpu(cpuinfo, data);
-	unsigned int new_freq;
+	unsigned int new_freq, scaled_freq, load_freq;
 	unsigned int loadadjfreq;
 	unsigned int index;
 	unsigned long flags;
@@ -423,10 +423,12 @@ static void cpufreq_interactive_timer(unsigned long data)
 	pcpu->prev_load = cpu_load;
 	boosted = boost_val || now < boostpulse_endtime;
 
+	scaled_freq = pcpu->policy->max * cpu_load / 100;
+	load_freq = choose_freq(pcpu, loadadjfreq);
+	new_freq = min(load_freq, scaled_freq);
+
 	if (cpu_load >= go_hispeed_load || boosted)
-		new_freq = max(pcpu->target_freq, hispeed_freq);
-	else
-		new_freq = choose_freq(pcpu, loadadjfreq);
+		new_freq = max(new_freq, hispeed_freq);
 
 	if (sync_freq && new_freq < sync_freq) {
 
