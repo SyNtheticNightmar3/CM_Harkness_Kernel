@@ -38,8 +38,7 @@ else
         echo " "
         if [ -e arch/arm/boot/zImage ]; then
             echo "Copying packaging components..."
-            mkdir -p out/system/lib/modules/
-            cp -a $(find . -name *.ko -print) out/system/lib/modules/
+            mkdir -p out
             cp -R package/* out/
             cp arch/arm/boot/zImage out/kernel/
             echo "Packaging..."
