@@ -1249,8 +1249,9 @@ select_task_rq_rt(struct task_struct *p, int sd_flag, int flags)
 {
 	struct task_struct *curr;
 	struct rq *rq;
-	int cpu;
+	int cpu = 0;
 
+#ifndef CONFIG_BLD
 	cpu = task_cpu(p);
 
 	if (p->rt.nr_cpus_allowed == 1)
@@ -1299,6 +1300,7 @@ select_task_rq_rt(struct task_struct *p, int sd_flag, int flags)
 	rcu_read_unlock();
 
 out:
+#endif
 	return cpu;
 }
 
@@ -2079,7 +2081,9 @@ const struct sched_class rt_sched_class = {
 	.put_prev_task		= put_prev_task_rt,
 
 #ifdef CONFIG_SMP
+#ifndef CONFIG_BLD
 	.select_task_rq		= select_task_rq_rt,
+#endif
 
 	.set_cpus_allowed       = set_cpus_allowed_rt,
 	.rq_online              = rq_online_rt,
