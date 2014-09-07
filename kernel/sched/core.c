@@ -569,7 +569,6 @@ void resched_cpu(int cpu)
 int get_nohz_timer_target(void)
 {
 	int cpu = smp_processor_id();
-#ifndef CONFIG_BLD
 	int i;
 	struct sched_domain *sd;
 
@@ -584,7 +583,6 @@ int get_nohz_timer_target(void)
 	}
 unlock:
 	rcu_read_unlock();
-#endif
 	return cpu;
 }
 /*
@@ -599,7 +597,6 @@ unlock:
  */
 void wake_up_idle_cpu(int cpu)
 {
-#ifndef CONFIG_BLD
 	struct rq *rq = cpu_rq(cpu);
 
 	if (cpu == smp_processor_id())
@@ -626,7 +623,6 @@ void wake_up_idle_cpu(int cpu)
 	smp_mb();
 	if (!tsk_is_polling(rq->idle))
 		smp_send_reschedule(cpu);
-#endif
 }
 
 static inline bool got_nohz_idle_kick(void)
@@ -748,7 +744,7 @@ static void enqueue_task(struct rq *rq, struct task_struct *p, int flags)
 	update_rq_clock(rq);
 	sched_info_queued(p);
 	p->sched_class->enqueue_task(rq, p, flags);
-	bld_track_load_activate(rq);
+	bld_track_load_activate(rq, p);
 }
 
 static void dequeue_task(struct rq *rq, struct task_struct *p, int flags)
@@ -756,7 +752,7 @@ static void dequeue_task(struct rq *rq, struct task_struct *p, int flags)
 	update_rq_clock(rq);
 	sched_info_dequeued(p);
 	p->sched_class->dequeue_task(rq, p, flags);
-	bld_track_load_deactivate(rq);
+	bld_track_load_deactivate(rq, p);
 }
 
 void activate_task(struct rq *rq, struct task_struct *p, int flags)
@@ -1366,7 +1362,14 @@ int select_task_rq(struct task_struct *p, int sd_flags, int wake_flags)
 #ifndef CONFIG_BLD
 	cpu = p->sched_class->select_task_rq(p, sd_flags, wake_flags);
 #else
-	cpu = bld_select_task_rq(p, sd_flags, wake_flags);
+	if (sd_flags != SD_BALANCE_FORK)
+		cpu = bld_select_task_rq(p, sd_flags, wake_flags);
+	else {
+		if (rt_task(p))
+			cpu = bld_select_task_rt(p, sd_flags, wake_flags);
+		else
+			cpu = bld_select_task_cfs(p, sd_flags, wake_flags);
+	}
 #endif
 	/*
 	 * In order not to call set_task_cpu() on a blocking task we need
@@ -7366,9 +7369,13 @@ void __init sched_init(void)
 		init_rq_hrtick(rq);
 		atomic_set(&rq->nr_iowait, 0);
 #ifdef CONFIG_BLD
-		INIT_LIST_HEAD(&rq->disp_load_balance);
-		list_add_tail(&rq->disp_load_balance, &rq_head);
-		rq->pos = 0;
+		INIT_LIST_HEAD(&rq->cfs.bld_cfs_list);
+		list_add_tail(&rq->cfs.bld_cfs_list, &cfs_rq_head);
+		rq->cfs.pos = 0;
+
+		INIT_LIST_HEAD(&rq->rt.bld_rt_list);
+		list_add_tail(&rq->rt.bld_rt_list, &rt_rq_head);
+		rq->rt.lowbit = INT_MAX;
 #endif
 	}
 

@@ -2720,11 +2720,10 @@ done:
 static int
 select_task_rq_fair(struct task_struct *p, int sd_flag, int wake_flags)
 {
-	int new_cpu = 0;
 	struct sched_domain *tmp, *affine_sd = NULL, *sd = NULL;
 	int cpu = smp_processor_id();
 	int prev_cpu = task_cpu(p);
-	new_cpu = cpu;
+	int new_cpu = cpu;
 	int want_affine = 0;
 	int want_sd = 1;
 	int sync = wake_flags & WF_SYNC;

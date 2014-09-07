@@ -1250,7 +1250,7 @@ select_task_rq_rt(struct task_struct *p, int sd_flag, int flags)
 {
 	struct task_struct *curr;
 	struct rq *rq;
-	int cpu = 0;
+	int cpu;
 
 	cpu = task_cpu(p);
 
