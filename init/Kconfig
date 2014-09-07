@@ -70,7 +70,7 @@ config BROKEN_ON_SMP
 
 config BLD
 	bool "An alternate CPU load distribution technique for kernel scheduler"
-	depends on EXPERIMENTAL && SMP
+	depends on SMP
 	default y
 	help
 	  This is an alternate CPU load distribution technique based on Barbershop

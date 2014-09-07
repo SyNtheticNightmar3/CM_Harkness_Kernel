@@ -3,12 +3,12 @@
 static DEFINE_RWLOCK(disp_list_lock);
 static LIST_HEAD(rq_head);
 
-static inline int select_cpu_for_wakeup(struct task_struct *p, int sd_flags, int wake_flags)
+static int select_cpu_for_wakeup(struct task_struct *p, int sd_flags, int wake_flags, int task_type)
 {
 	int cpu = smp_processor_id(), prev_cpu = task_cpu(p), i;
-	/*bool sync = wake_flags & WF_SYNC; */
 	unsigned long load, min_load = ULONG_MAX;
 	struct cpumask *mask;
+	struct rq *rq;
 
 	if (wake_flags & WF_SYNC) {
 		if (cpu == prev_cpu)
@@ -17,11 +17,23 @@ static inline int select_cpu_for_wakeup(struct task_struct *p, int sd_flags, int
 	} else
 		mask = sched_domain_span(cpu_rq(prev_cpu)->sd);
 
-	for_each_cpu(i, mask) {
-		load = cpu_rq(i)->load.weight;
-		if (load < min_load) {
-			min_load = load;
-			cpu = i;
+	if (task_type) {
+		for_each_cpu(i, mask) {
+			rq = cpu_rq(i);
+			load = rq->cfs.load.weight;
+			if (load < min_load) {
+				min_load = load;
+				cpu = i;
+			}
+		}
+	} else {
+		for_each_cpu(i, mask) {
+			rq = cpu_rq(i);
+			load = rq->rt.rt_nr_running;
+			if (load < min_load) {
+				min_load = load;
+				cpu = i;
+			}
 		}
 	}
 	return cpu;
@@ -29,8 +41,7 @@ static inline int select_cpu_for_wakeup(struct task_struct *p, int sd_flags, int
 
 static int bld_select_task_rq(struct task_struct *p, int sd_flags, int wake_flags)
 {
-	struct rq *tmp, *rq;
-	unsigned long flag;
+	struct rq *rq;
 	unsigned int cpu = smp_processor_id();
 
 	if (&p->cpus_allowed) {
@@ -45,11 +56,14 @@ static int bld_select_task_rq(struct task_struct *p, int sd_flags, int wake_flag
 			}
 		}
 	} else	if (sd_flags & SD_BALANCE_WAKE) {
-		cpu = select_cpu_for_wakeup(p, sd_flags, wake_flags);
+		if (!rt_task(p))
+			cpu = select_cpu_for_wakeup(p, sd_flags, wake_flags, 1);
+		else
+			cpu = select_cpu_for_wakeup(p, sd_flags, wake_flags, 0);
 		return cpu;
 	} else {
 		read_lock_irq(&disp_list_lock);
-		list_for_each_entry_safe(rq, tmp, &rq_head, disp_load_balance) {
+		list_for_each_entry(rq, &rq_head, disp_load_balance) {
 			cpu = cpu_of(rq);
 			if (cpu_online(cpu))
 				break;
@@ -61,7 +75,7 @@ static int bld_select_task_rq(struct task_struct *p, int sd_flags, int wake_flag
 
 static void bld_track_load_activate(struct rq *rq)
 {
-	unsigned long  flag;
+	unsigned long flag;
 
 	if (rq->pos != 2) {	/* if rq isn't the last one */
 		struct rq *last;
@@ -69,7 +83,7 @@ static void bld_track_load_activate(struct rq *rq)
 		if (rq->load.weight > last->load.weight) {
 			write_lock_irqsave(&disp_list_lock, flag);
 			list_del(&rq->disp_load_balance);
-			list_add_tail(&rq->disp_load_balance, &rq_head);
+			list_add(&rq->disp_load_balance, &rq_head);
 			rq->pos = 2; last->pos = 1;
 			write_unlock_irqrestore(&disp_list_lock, flag);
 		}

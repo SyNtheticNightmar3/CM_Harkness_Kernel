@@ -2378,6 +2378,8 @@ static void task_waking_fair(struct task_struct *p)
 	se->vruntime -= min_vruntime;
 }
 
+#ifndef CONFIG_BLD
+
 #ifdef CONFIG_FAIR_GROUP_SCHED
 /*
  * effective_load() calculates the load change as seen from the root_task_group
@@ -2719,7 +2721,6 @@ static int
 select_task_rq_fair(struct task_struct *p, int sd_flag, int wake_flags)
 {
 	int new_cpu = 0;
-#ifndef CONFIG_BLD
 	struct sched_domain *tmp, *affine_sd = NULL, *sd = NULL;
 	int cpu = smp_processor_id();
 	int prev_cpu = task_cpu(p);
@@ -2834,9 +2835,9 @@ select_task_rq_fair(struct task_struct *p, int sd_flag, int wake_flags)
 	}
 unlock:
 	rcu_read_unlock();
-#endif
 	return new_cpu;
 }
+#endif /* CONFIG_BLD */
 #endif /* CONFIG_SMP */
 
 static unsigned long
@@ -4749,6 +4750,7 @@ out_unlock:
  *   needed, they will kick the idle load balancer, which then does idle
  *   load balancing for all the idle CPUs.
  */
+#ifndef CONFIG_BLD
 static struct {
 	cpumask_var_t idle_cpus_mask;
 	atomic_t nr_cpus;
@@ -4905,6 +4907,7 @@ static inline void set_cpu_sd_state_busy(void)
 		atomic_inc(&sd->groups->sgp->nr_busy_cpus);
 	rcu_read_unlock();
 }
+#endif /* CONFIG_BLD */
 
 void set_cpu_sd_state_idle(void)
 {
@@ -4921,13 +4924,13 @@ void set_cpu_sd_state_idle(void)
 	rcu_read_unlock();
 }
 
+#ifndef CONFIG_BLD
 /*
  * This routine will record that this cpu is going idle with tick stopped.
  * This info will be used in performing idle load balancing in the future.
  */
 void select_nohz_load_balancer(int stop_tick)
 {
-#ifndef CONFIG_BLD
 	int cpu = smp_processor_id();
 
 	/*
@@ -4945,7 +4948,6 @@ void select_nohz_load_balancer(int stop_tick)
 		set_bit(NOHZ_TICK_STOPPED, nohz_flags(cpu));
 	}
 	return;
-#endif
 }
 
 static int __cpuinit sched_ilb_notifier(struct notifier_block *nfb,
@@ -4959,9 +4961,12 @@ static int __cpuinit sched_ilb_notifier(struct notifier_block *nfb,
 		return NOTIFY_DONE;
 	}
 }
+#else
+void select_nohz_load_balancer(int stop_tick)
+{
+}
+#endif /* CONFIG_BLD */
 #endif
-
-static DEFINE_SPINLOCK(balancing);
 
 /*
  * Scale the max load_balance interval with the number of CPUs in the system.
@@ -4971,6 +4976,9 @@ void update_max_interval(void)
 {
 	max_load_balance_interval = HZ*num_online_cpus()/10;
 }
+
+#ifndef CONFIG_BLD
+static DEFINE_SPINLOCK(balancing);
 
 /*
  * It checks each scheduling domain to see if it is due to be balanced,
@@ -5197,6 +5205,7 @@ void trigger_load_balance(struct rq *rq, int cpu)
 		nohz_balancer_kick(cpu);
 #endif
 }
+#endif /* CONFIG_BLD */
 
 static void rq_online_fair(struct rq *rq)
 {

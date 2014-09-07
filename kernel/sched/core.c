@@ -25,7 +25,7 @@
  *  2007-11-29  RT balancing improvements by Steven Rostedt, Gregory Haskins,
  *              Thomas Gleixner, Mike Kravetz
  *  2012-Feb	The Barbershop Load Distribution (BLD) algorithm - an alternate
- *  		CPU load distribution technique for kernel scheduler by Rakib Mullick.
+ *		CPU load distribution technique for kernel scheduler by Rakib Mullick.
  */
 
 #include <linux/mm.h>
@@ -569,6 +569,7 @@ void resched_cpu(int cpu)
 int get_nohz_timer_target(void)
 {
 	int cpu = smp_processor_id();
+#ifndef CONFIG_BLD
 	int i;
 	struct sched_domain *sd;
 
@@ -583,6 +584,7 @@ int get_nohz_timer_target(void)
 	}
 unlock:
 	rcu_read_unlock();
+#endif
 	return cpu;
 }
 /*
@@ -1551,15 +1553,17 @@ void scheduler_ipi(void)
 		this_rq()->idle_balance = 1;
 		raise_softirq_irqoff(SCHED_SOFTIRQ);
 	}
-	irq_exit();
 #endif
+	irq_exit();
 }
 
+#ifndef CONFIG_BLD
 static void ttwu_queue_remote(struct task_struct *p, int cpu)
 {
 	if (llist_add(&p->wake_entry, &cpu_rq(cpu)->wake_list))
 		smp_send_reschedule(cpu);
 }
+#endif
 
 #ifdef __ARCH_WANT_INTERRUPTS_ON_CTXSW
 static int ttwu_activate_remote(struct task_struct *p, int wake_flags)
@@ -2506,7 +2510,6 @@ calc_load_n(unsigned long load, unsigned long exp,
  */
 static void calc_global_nohz(void)
 {
-#ifndef CONFIG_BLD
 	long delta, active, n;
 
 	if (!time_before(jiffies, calc_load_update + 10)) {
@@ -2535,7 +2538,6 @@ static void calc_global_nohz(void)
 	 */
 	smp_wmb();
 	calc_load_idx++;
-#endif
 }
 #else /* !CONFIG_NO_HZ */
 
