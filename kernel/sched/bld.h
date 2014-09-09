@@ -5,15 +5,29 @@ static LIST_HEAD(rt_rq_head);
 static LIST_HEAD(cfs_rq_head);
 static DEFINE_RWLOCK(cfs_list_lock);
 
-static inline struct rq *rq_of_rt(struct rt_rq *rt_rq)
-{
-	return rt_rq->rq;
-}
-
+#ifdef CONFIG_FAIR_GROUP_SCHED
 static inline struct rq *rq_of_cfs(struct cfs_rq *cfs_rq)
 {
 	return cfs_rq->rq;
 }
+#else
+static inline struct rq *rq_of_cfs(struct cfs_rq *cfs_rq)
+{
+	return container_of(cfs_rq, struct rq, cfs);
+}
+#endif
+
+#ifdef CONFIG_RT_GROUP_SCHED
+static inline struct rq *rq_of_rt(struct rt_rq *rt_rq)
+{
+	return rt_rq->rq;
+}
+#else
+static inline struct rq *rq_of_rt(struct rt_rq *rt_rq)
+{
+	return container_of(rt_rq, struct rq, rt);
+}
+#endif
 
 static int select_cpu_for_wakeup(int task_type, struct cpumask *mask)
 {
@@ -46,7 +60,7 @@ static int select_cpu_for_wakeup(int task_type, struct cpumask *mask)
 	return cpu;
 }
 
-static int bld_select_task_cfs(struct task_struct *p, int sd_flags, int wake_flags)
+static int bld_pick_cpu_cfs(struct task_struct *p, int sd_flags, int wake_flags)
 {
 	struct cfs_rq *cfs;
 	unsigned long flags;
@@ -62,7 +76,7 @@ static int bld_select_task_cfs(struct task_struct *p, int sd_flags, int wake_fla
 	return cpu;
 }
 
-static int bld_select_task_rt(struct task_struct *p, int sd_flags, int wake_flags)
+static int bld_pick_cpu_rt(struct task_struct *p, int sd_flags, int wake_flags)
 {
 	struct rt_rq *rt;
 	unsigned long flags;
@@ -78,7 +92,7 @@ static int bld_select_task_rt(struct task_struct *p, int sd_flags, int wake_flag
 	return cpu;
 }
 
-static int bld_select_task_rq(struct task_struct *p, int sd_flags, int wake_flags)
+static int bld_pick_cpu_domain(struct task_struct *p, int sd_flags, int wake_flags)
 {
 	unsigned int cpu = smp_processor_id(), want_affine = 0;
 	struct cpumask *tmpmask;
@@ -119,12 +133,28 @@ static void track_load_rt(struct rq *rq, struct task_struct *p)
 	if (firstbit <= rq->rt.lowbit)
 		rq->rt.lowbit = p->prio;
 
-	if (rq->rt.lowbit > first->lowbit) {
+	if (rq->rt.lowbit < first->lowbit) {
 		write_lock_irqsave(&rt_list_lock, flag);
 		list_del(&rq->rt.bld_rt_list);
 		list_add_tail(&rq->rt.bld_rt_list, &rt_rq_head);
 		write_unlock_irqrestore(&rt_list_lock, flag);
 	}
+}
+
+static int bld_get_cpu(struct task_struct *p, int sd_flags, int wake_flags)
+{
+	unsigned int cpu;
+
+	if (sd_flags == SD_BALANCE_WAKE || (sd_flags == SD_BALANCE_EXEC && (get_nr_threads(p) > 1)))
+		cpu = bld_pick_cpu_domain(p, sd_flags, wake_flags);
+	else {
+		if (rt_task(p))
+			cpu = bld_pick_cpu_rt(p, sd_flags, wake_flags);
+		else
+			cpu = bld_pick_cpu_cfs(p, sd_flags, wake_flags);
+	}
+
+	return cpu;
 }
 
 static void bld_track_load_activate(struct rq *rq, struct task_struct *p)

@@ -1362,14 +1362,7 @@ int select_task_rq(struct task_struct *p, int sd_flags, int wake_flags)
 #ifndef CONFIG_BLD
 	cpu = p->sched_class->select_task_rq(p, sd_flags, wake_flags);
 #else
-	if (sd_flags != SD_BALANCE_FORK)
-		cpu = bld_select_task_rq(p, sd_flags, wake_flags);
-	else {
-		if (rt_task(p))
-			cpu = bld_select_task_rt(p, sd_flags, wake_flags);
-		else
-			cpu = bld_select_task_cfs(p, sd_flags, wake_flags);
-	}
+	cpu = bld_get_cpu(p, sd_flags, wake_flags);
 #endif
 	/*
 	 * In order not to call set_task_cpu() on a blocking task we need
@@ -2799,7 +2792,7 @@ void sched_exec(void)
 #ifndef CONFIG_BLD
 	dest_cpu = p->sched_class->select_task_rq(p, SD_BALANCE_EXEC, 0);
 #else
-	dest_cpu = bld_select_task_rq(p, SD_BALANCE_EXEC, 0);
+	dest_cpu = bld_get_cpu(p, SD_BALANCE_EXEC, 0);
 #endif
 	if (dest_cpu == smp_processor_id())
 		goto unlock;
