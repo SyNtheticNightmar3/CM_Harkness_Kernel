@@ -392,7 +392,7 @@ static void cpufreq_interactive_timer(unsigned long data)
 	int cpu_load;
 	struct cpufreq_interactive_cpuinfo *pcpu =
 		&per_cpu(cpuinfo, data);
-	unsigned int new_freq;
+	unsigned int new_freq, scaled_freq, load_freq;
 	unsigned int loadadjfreq;
 	unsigned int index;
 	unsigned long flags;
@@ -423,38 +423,32 @@ static void cpufreq_interactive_timer(unsigned long data)
 	pcpu->prev_load = cpu_load;
 	boosted = boost_val || now < boostpulse_endtime;
 
-	if (cpu_load >= go_hispeed_load || boosted) {
-		if (pcpu->target_freq < hispeed_freq) {
-			new_freq = hispeed_freq;
-		} else {
-			new_freq = choose_freq(pcpu, loadadjfreq);
+	scaled_freq = pcpu->policy->max * cpu_load / 100;
+	load_freq = choose_freq(pcpu, loadadjfreq);
+	new_freq = min(load_freq, scaled_freq);
 
-			if (new_freq < hispeed_freq)
-				new_freq = hispeed_freq;
+	if (cpu_load >= go_hispeed_load || boosted)
+		new_freq = max(new_freq, hispeed_freq);
+
+	if (sync_freq && new_freq < sync_freq) {
+
+		max_load = 0;
+		max_freq = 0;
+
+		for_each_online_cpu(i) {
+			picpu = &per_cpu(cpuinfo, i);
+
+			if (i == data || picpu->prev_load <
+					up_threshold_any_cpu_load)
+				continue;
+
+			max_load = max(max_load, picpu->prev_load);
+			max_freq = max(max_freq, picpu->target_freq);
 		}
-	} else {
-		new_freq = choose_freq(pcpu, loadadjfreq);
 
-		if (sync_freq && new_freq < sync_freq) {
-
-			max_load = 0;
-			max_freq = 0;
-
-			for_each_online_cpu(i) {
-				picpu = &per_cpu(cpuinfo, i);
-
-				if (i == data || picpu->prev_load <
-						up_threshold_any_cpu_load)
-					continue;
-
-				max_load = max(max_load, picpu->prev_load);
-				max_freq = max(max_freq, picpu->target_freq);
-			}
-
-			if (max_freq > up_threshold_any_cpu_freq &&
-				max_load >= up_threshold_any_cpu_load)
-				new_freq = sync_freq;
-		}
+		if (max_freq > up_threshold_any_cpu_freq &&
+			max_load >= up_threshold_any_cpu_load)
+			new_freq = sync_freq;
 	}
 
 	if (pcpu->target_freq >= hispeed_freq &&

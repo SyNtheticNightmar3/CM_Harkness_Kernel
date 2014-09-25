@@ -28,12 +28,14 @@
 #include <linux/delay.h>
 #include <linux/platform_device.h>
 #include <linux/of_platform.h>
+#include <linux/cpu.h>
 #include <mach/msm_iomap.h>
 #include <mach/socinfo.h>
 #include <mach/system.h>
 #include <mach/scm.h>
 #include <mach/socinfo.h>
 #include <mach/msm-krait-l2-accessors.h>
+#include <asm/system_misc.h>
 #include <asm/cacheflush.h>
 #include <asm/hardware/gic.h>
 #include <asm/pgtable.h>
@@ -82,6 +84,8 @@ module_param_named(
 	debug_mask, msm_pm_debug_mask, int, S_IRUGO | S_IWUSR | S_IWGRP
 );
 static int msm_pm_retention_tz_call;
+
+static atomic_t cpu_online_num = ATOMIC_INIT(0);
 
 /******************************************************************************
  * Sleep Modes and Parameters
@@ -537,10 +541,6 @@ static bool __ref msm_pm_spm_power_collapse(
 	void *entry;
 	bool collapsed = 0;
 	int ret;
-	unsigned int saved_gic_cpu_ctrl;
-
-	saved_gic_cpu_ctrl = readl_relaxed(MSM_QGIC_CPU_BASE + GIC_CPU_CTRL);
-	mb();
 
 	if (MSM_PM_DEBUG_POWER_COLLAPSE & msm_pm_debug_mask)
 		pr_info("CPU%u: %s: notify_rpm %d\n",
@@ -561,10 +561,6 @@ static bool __ref msm_pm_spm_power_collapse(
 		pr_info("CPU%u: %s: program vector to %p\n",
 			cpu, __func__, entry);
 
-#ifdef CONFIG_VFP
-	vfp_pm_suspend();
-#endif
-
 #ifdef CONFIG_SEC_DEBUG
 	debug_power_collaspe_status[smp_processor_id()] =
 			(from_idle<<8)|(notify_rpm<<4)|1;
@@ -578,14 +574,7 @@ static bool __ref msm_pm_spm_power_collapse(
 	msm_pm_boot_config_after_pc(cpu);
 
 	if (collapsed) {
-#ifdef CONFIG_VFP
-		vfp_pm_resume();
-#endif
 		cpu_init();
-		writel(0xF0, MSM_QGIC_CPU_BASE + GIC_CPU_PRIMASK);
-		writel_relaxed(saved_gic_cpu_ctrl,
-				MSM_QGIC_CPU_BASE + GIC_CPU_CTRL);
-		mb();
 		local_fiq_enable();
 	}
 
@@ -784,7 +773,7 @@ int msm_pm_idle_prepare(struct cpuidle_device *dev,
 {
 	int i;
 	unsigned int power_usage = -1;
-	int ret = 0;
+	int ret = MSM_PM_SLEEP_MODE_NOT_SELECTED;
 	uint32_t modified_time_us = 0;
 	struct msm_pm_time_params time_param;
 
@@ -819,7 +808,8 @@ int msm_pm_idle_prepare(struct cpuidle_device *dev,
 
 		switch (mode) {
 		case MSM_PM_SLEEP_MODE_POWER_COLLAPSE:
-			if (num_online_cpus() > 1 || cpu_maps_is_updating()) {
+			if (num_online_cpus() > 1 || cpu_maps_is_updating() ||
+			    atomic_read(&cpu_online_num) > 1) {
 				allow = false;
 				break;
 			}
@@ -829,7 +819,8 @@ int msm_pm_idle_prepare(struct cpuidle_device *dev,
 				break;
 
 			if (msm_pm_retention_tz_call &&
-				num_online_cpus() > 1) {
+				(num_online_cpus() > 1 ||
+				 atomic_read(&cpu_online_num) > 1)) {
 				allow = false;
 				break;
 			}
@@ -960,9 +951,14 @@ int msm_pm_idle_enter(enum msm_pm_sleep_mode sleep_mode)
 		break;
 	}
 
+	case MSM_PM_SLEEP_MODE_NOT_SELECTED:
+		goto cpuidle_enter_bail;
+		break;
+
 	default:
 		__WARN();
 		goto cpuidle_enter_bail;
+		break;
 	}
 
 	time = ktime_to_ns(ktime_get()) - time;
@@ -1120,7 +1116,20 @@ enter_exit:
 	return 0;
 }
 
+static int msm_pm_begin(suspend_state_t state)
+{
+	disable_hlt();
+	return 0;
+}
+
+static void msm_pm_end(void)
+{
+	enable_hlt();
+}
+
 static struct platform_suspend_ops msm_pm_ops = {
+	.begin = msm_pm_begin,
+	.end   = msm_pm_end,
 	.enter = msm_pm_enter,
 	.valid = suspend_valid_only_mem,
 };
@@ -1266,6 +1275,35 @@ static struct platform_driver msm_pc_counter_driver = {
 	},
 };
 
+static int msm_pm_cpu_callback(struct notifier_block *nfb,
+				unsigned long action, void *hcpu)
+{
+	switch (action) {
+	case CPU_UP_PREPARE:
+	case CPU_UP_PREPARE_FROZEN:
+		atomic_inc(&cpu_online_num);
+		break;
+	case CPU_ONLINE:
+	case CPU_ONLINE_FROZEN:
+		break;
+#ifdef CONFIG_HOTPLUG_CPU
+	case CPU_UP_CANCELED:
+	case CPU_UP_CANCELED_FROZEN:
+		atomic_dec(&cpu_online_num);
+		break;
+	case CPU_DEAD:
+	case CPU_DEAD_FROZEN:
+		atomic_dec(&cpu_online_num);
+		break;
+	}
+#endif
+	return NOTIFY_OK;
+}
+
+static struct notifier_block msm_pm_cpu_notifier = {
+	.notifier_call = msm_pm_cpu_callback,
+};
+
 static int __init msm_pm_setup_saved_state(void)
 {
 	pgd_t *pc_pgd;
@@ -1343,6 +1381,10 @@ static int __init msm_pm_init(void)
 		return rc;
 	}
 
+
+	atomic_set(&cpu_online_num, num_online_cpus());
+
+	register_hotcpu_notifier(&msm_pm_cpu_notifier);
 
 	return 0;
 }
