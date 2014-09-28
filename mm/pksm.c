@@ -106,8 +106,6 @@ static int is_full_zero(const void *s1, size_t len)
 
 	return same;
 }
-
-
 #elif defined(CONFIG_X86_64)
 #define memcmp memcmpx86_64
 /*
@@ -148,8 +146,22 @@ static int is_full_zero(const void *s1, size_t len)
 
 	return same;
 }
-
 #endif
+#elif defined(CONFIG_ARM)
+static int is_full_zero(const void *cs, size_t count)
+{
+	const unsigned long *src = cs;
+	int i;
+
+	count /= sizeof(*src);
+
+	for (i = 0; i < count; i++) {
+		if (src[i])
+			return 0;
+	}
+
+	return 1;
+}
 #else
 static int is_full_zero(const void *s1, size_t len)
 {
