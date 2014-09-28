@@ -2547,15 +2547,19 @@ KSM_ATTR_RO(rmap_items);
 
 static struct attribute *ksm_attrs[] = {
 	&sleep_millisecs_attr.attr,
-	&period_seconds_attr.attr,
 	&pages_to_scan_attr.attr,
 	&run_attr.attr,
 	&pages_shared_attr.attr,
 	&pages_sharing_attr.attr,
-	&pages_zero_sharing_attr.attr,
 	&pages_unshared_attr.attr,
 	&full_scans_attr.attr,
 	&deferred_timer_attr.attr,
+	NULL,
+};
+
+static struct attribute *pksm_attrs[] = {
+	&period_seconds_attr.attr,
+	&pages_zero_sharing_attr.attr,
 	&stable_nodes_attr.attr,
 	&rmap_items_attr.attr,
 	NULL,
@@ -2563,6 +2567,11 @@ static struct attribute *ksm_attrs[] = {
 
 static struct attribute_group ksm_attr_group = {
 	.attrs = ksm_attrs,
+	.name = "ksm",
+};
+
+static struct attribute_group pksm_attr_group = {
+	.attrs = pksm_attrs,
 	.name = "pksm",
 };
 #endif /* CONFIG_SYSFS */
@@ -2614,6 +2623,7 @@ static int __init ksm_init(void)
 
 #ifdef CONFIG_SYSFS
 	err = sysfs_create_group(mm_kobj, &ksm_attr_group);
+	err = sysfs_create_group(mm_kobj, &pksm_attr_group);
 	if (err) {
 		printk(KERN_ERR "ksm: register sysfs failed\n");
 		kthread_stop(ksm_thread);
