@@ -153,7 +153,7 @@ static int is_full_zero(const void *s1, size_t len)
 #else
 static int is_full_zero(const void *s1, size_t len)
 {
-	unsigned long *src = s1;
+	const unsigned long *src = s1;
 	int i;
 
 	len /= sizeof(*src);
@@ -568,6 +568,7 @@ static inline bool ksm_test_exit(struct mm_struct *mm)
 	return atomic_read(&mm->mm_users) == 0;
 }
 
+#if 0
 /*
  * We use break_ksm to break COW on a ksm page: it's a stripped down
  *
@@ -626,6 +627,7 @@ static int break_ksm(struct vm_area_struct *vma, unsigned long addr)
 	 */
 	return (ret & VM_FAULT_OOM) ? -ENOMEM : 0;
 }
+#endif
 
 /*
  * Check that no O_DIRECT or similar I/O is in progress on the
@@ -637,6 +639,7 @@ static int check_page_dio(struct page *page)
 	return (page_mapcount(page) +1+ swapped != page_count(page));
 }
 
+#if 0
 static void break_cow(struct rmap_item *rmap_item)
 {
 	struct page *page;
@@ -654,6 +657,7 @@ static void break_cow(struct rmap_item *rmap_item)
 
 	//rmap_walk_cow(page, pksm_break_ksm, NULL);
 }
+#endif
 
 static struct page *get_ksm_page(struct rmap_item *rmap_item)
 {
@@ -811,6 +815,7 @@ static void pksm_free_all_rmap_items(void)
 	pksm_clean_all_rmap_items(&l_del);
 }
 
+#if 0
 /*
  * Though it's very tempting to unmerge in_stable_tree(rmap_item)s rather
  * than check every pte of a given vma, the locking doesn't quite work for
@@ -902,6 +907,7 @@ error:
 	spin_unlock(&ksm_mmlist_lock);
 	return err;
 }
+#endif
 #endif /* CONFIG_SYSFS */
 
 
