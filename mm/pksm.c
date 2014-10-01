@@ -389,13 +389,12 @@ static void __init ksm_slab_free(void)
 
 static inline struct stable_node_anon *alloc_stable_anon(void)
 {
-	struct stable_node_anon *node =NULL;
-
+	struct stable_node_anon *node;
 	node = kmem_cache_alloc(stable_anon_cache, GFP_KERNEL);
-	if (node) {
-		ksm_stable_nodes++;
-	}
+	if (!node)
+		return NULL;
 
+	ksm_stable_nodes++;
 	return node;
 }
 
@@ -713,7 +712,7 @@ out:
 static struct page *get_mergeable_page(struct rmap_item *rmap_item)
 {
 
-	struct page *page =NULL;
+	struct page *page;
 
 	if (!check_valid_rmap_item(rmap_item))
 		goto out;
