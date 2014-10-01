@@ -2566,8 +2566,6 @@ static ssize_t rmap_items_show(struct kobject *kobj,
 KSM_ATTR_RO(rmap_items);
 
 static struct attribute *ksm_attrs[] = {
-	&sleep_millisecs_attr.attr,
-	&pages_to_scan_attr.attr,
 	&run_attr.attr,
 	&pages_shared_attr.attr,
 	&pages_sharing_attr.attr,
@@ -2578,6 +2576,8 @@ static struct attribute *ksm_attrs[] = {
 };
 
 static struct attribute *pksm_attrs[] = {
+	&sleep_millisecs_attr.attr,
+	&pages_to_scan_attr.attr,
 	&period_seconds_attr.attr,
 	&pages_zero_sharing_attr.attr,
 	&stable_nodes_attr.attr,
