@@ -58,9 +58,8 @@
 #include <asm/tlbflush.h>
 #include "internal.h"
 
-#define CONFIG_PKSM_RHASH
-
 #ifdef CONFIG_X86
+#define CONFIG_PKSM_RHASH
 #undef memcmp
 
 #ifdef CONFIG_X86_32
@@ -1298,6 +1297,7 @@ static int try_to_merge_two_pages(struct rmap_item *rmap_item,
 	return err;
 }
 
+#ifdef CONFIG_PKSM_RHASH
 static inline int hash_cmp(u32 new_val, u32 node_val)
 {
 	if (new_val > node_val)
@@ -1307,6 +1307,7 @@ static inline int hash_cmp(u32 new_val, u32 node_val)
 	else
 		return 0;
 }
+#endif
 
 /*
  * stable_tree_search - search for page inside the stable tree
@@ -1319,7 +1320,9 @@ static inline int hash_cmp(u32 new_val, u32 node_val)
  */
 static struct page *stable_tree_search(struct page *page)
 {
+#ifdef CONFIG_PKSM_RHASH
 	struct rmap_item *rmap_item = (struct rmap_item *)(page->pksm);
+#endif
 	struct rb_node *parent = NULL;
 	struct rb_node **new ;
 
