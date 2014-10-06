@@ -357,6 +357,7 @@ config ARCH_MSM9625
 	select MSM_GPIOMUX
 	select MULTI_IRQ_HANDLER
 	select GPIO_MSM_V3
+	select HAS_MACH_MEMUTILS
 endmenu
 
 choice
