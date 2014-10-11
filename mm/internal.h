@@ -219,7 +219,7 @@ static inline void mlock_migrate_page(struct page *newpage, struct page *page)
 	}
 }
 
-#ifdef CONFIG_TRANSPARENT_HUGEPAGE
+#if defined(CONFIG_TRANSPARENT_HUGEPAGE) || defined(CONFIG_PKSM)
 extern unsigned long vma_address(struct page *page,
 				 struct vm_area_struct *vma);
 #endif
